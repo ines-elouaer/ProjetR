@@ -1,1 +1,12 @@
+---
+title: "Analyse de la production mensuelle d’électricité en Tunisie (2005–2024)"
+format:
+  pdf:
+    documentclass: article
+    keep-tex: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
 
