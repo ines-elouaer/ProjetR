@@ -1,0 +1,10 @@
+---
+title: "Accueil"
+---
+
+Bienvenue 👋
+
+Ce dépôt contient l’analyse de la production mensuelle d’électricité en Tunisie (2005–2024).
+
+➡️ Ouvre le **Rapport** via le menu (ou fichier `qmd/report.qmd`).
+

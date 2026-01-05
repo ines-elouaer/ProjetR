@@ -1,0 +1,16 @@
+[
+  {
+    "objectID": "qmd/report.html",
+    "href": "qmd/report.html",
+    "title": "Analyse de la production mensuelle d’électricité en Tunisie (2005–2024)",
+    "section": "",
+    "text": "library(dplyr) library(ggplot2) library(lubridate) library(stringr) library(tidyr)\n##2) Chargement des données\nstopifnot(file.exists(“data/opendataproductionmensuelleelectriciteparproducteurs.csv”))\ndata &lt;- read.csv( “data/opendataproductionmensuelleelectriciteparproducteurs.csv”, sep = “;”, stringsAsFactors = FALSE )\nstr(data) summary(data) head(data, 10)\n##3) Nettoyage : renommage des variables\ndata &lt;- data %&gt;% rename( date = Date, steg = Production.STEG..en.GWh, ipp = Production.IPP.en.GWh, solaire = IPP.Solaire, auto = Production.Auto.producteurs..en.GWh, total = Production.totale..GWh. )\nstr(data) summary(data)\n##4) Nettoyage : conversion des dates (formats mixtes FR) to_date_fr &lt;- function(x){ x &lt;- str_trim(x)"
+  },
+  {
+    "objectID": "qmd/report.html#chargement-des-packages",
+    "href": "qmd/report.html#chargement-des-packages",
+    "title": "Analyse de la production mensuelle d’électricité en Tunisie (2005–2024)",
+    "section": "",
+    "text": "library(dplyr) library(ggplot2) library(lubridate) library(stringr) library(tidyr)\n##2) Chargement des données\nstopifnot(file.exists(“data/opendataproductionmensuelleelectriciteparproducteurs.csv”))\ndata &lt;- read.csv( “data/opendataproductionmensuelleelectriciteparproducteurs.csv”, sep = “;”, stringsAsFactors = FALSE )\nstr(data) summary(data) head(data, 10)\n##3) Nettoyage : renommage des variables\ndata &lt;- data %&gt;% rename( date = Date, steg = Production.STEG..en.GWh, ipp = Production.IPP.en.GWh, solaire = IPP.Solaire, auto = Production.Auto.producteurs..en.GWh, total = Production.totale..GWh. )\nstr(data) summary(data)\n##4) Nettoyage : conversion des dates (formats mixtes FR) to_date_fr &lt;- function(x){ x &lt;- str_trim(x)"
+  }
+]

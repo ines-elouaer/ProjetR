@@ -1,0 +1,20 @@
+
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "Analyse production électricité Tunisie (2005–2024)"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Accueil
+      - href: qmd/report.qmd
+        text: Rapport
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    number-sections: true
+
