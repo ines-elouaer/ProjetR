@@ -1,23 +1,39 @@
 ---
-title: "Accueil"
+title: "ProjetR – Production mensuelle d’électricité (Tunisie, 2005–2024)"
 format:
   html:
-    theme: cosmo
     toc: false
+    theme: cosmo
+    css: styles.css
 ---
 
-## Projet
-Analyse de la production mensuelle d’électricité en Tunisie sur la période **2005–2024**.
+::: {.hero}
+# Analyse de la production mensuelle d’électricité en Tunisie
+**Période : 2005–2024**  
 
-### Objectifs
-- Comprendre la **tendance** long terme
-- Identifier la **saisonnalité**
-- Comparer la contribution de différents producteurs (STEG, IPP, solaire, auto-producteurs)
+Ce site présente :
+- le rapport d’analyse (figures + interprétation),
+- la méthodologie de préparation des données,
+- un modèle simple de tendance + saisonnalité.
 
-## Ressources dans ce dépôt
-- **Rapport Quarto** : `qmd/report.qmd`
-- **Dataset** : `data/opendataproductionmensuelleelectriciteparproducteurs.csv`
-- **Sortie site (GitHub Pages)** : dossier `docs/`
+[➡️ Ouvrir le rapport](qmd/report.html){.btn .btn-primary}
+:::
 
-➡️ Clique sur **Rapport** dans le menu en haut.
+---
+
+## Plan du site
+
+- **Rapport** : analyses descriptives, visualisations, saisonnalité, modèle simple
+- **Données** : préparation, nettoyage, transformation des dates
+- **Résultats** : interprétation et conclusion
+
+## À propos
+
+- **Auteur** : Ines Elouaer
+- **Outils** : R, Quarto, ggplot2
+
+## Reproductibilité
+
+Le rapport est généré automatiquement avec Quarto à partir du fichier `qmd/report.qmd`.
+Les sorties HTML sont publiées via GitHub Pages (dossier `docs/`).
 

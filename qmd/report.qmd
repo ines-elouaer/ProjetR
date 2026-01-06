@@ -1,153 +1,225 @@
 ---
----
 title: "Analyse de la production mensuelle d’électricité en Tunisie (2005–2024)"
 format:
   html:
-    theme: cosmo
     toc: true
+    toc-depth: 3
+    code-fold: true
+    theme: cosmo
+    css: styles.css
 execute:
   echo: false
   warning: false
   message: false
 ---
 
-## 1) Packages
+
+## Introduction
+
+Ce rapport analyse l’évolution mensuelle de la production d’électricité en Tunisie entre 2005 et 2024.
+Les objectifs sont :
+- décrire la tendance de long terme,
+- identifier la saisonnalité,
+- comparer des catégories (si disponibles),
+- proposer un modèle simple de type régression avec saisonnalité.
+
+## Données
+
+Le jeu de données provient d’un fichier CSV et contient des observations mensuelles.
+Les variables exactes peuvent varier selon le fichier. Le code ci-dessous détecte automatiquement
+les colonnes clés (date, production totale, catégories si présentes) et s’adapte au mieux.
 
 ```{r}
+#| label: setup
 library(dplyr)
 library(ggplot2)
 library(lubridate)
 library(stringr)
 library(tidyr)
+library(readr)
 
-##2) Chargement des données
+data_path <- "
+data/opendataproductionmensuelleelectriciteparproducteurs.csv
+"
+stopifnot(file.exists(data_path))
 
-stopifnot(file.exists("data/opendataproductionmensuelleelectriciteparproducteurs.csv"))
+# Lecture robuste
+df_raw <- readr::read_csv(data_path, show_col_types = FALSE)
 
-data <- read.csv(
-"data/opendataproductionmensuelleelectriciteparproducteurs.csv",
-sep = ";",
-stringsAsFactors = FALSE
-)
+# Nettoyage noms de colonnes
+df <- df_raw %>%
+  rename_with(~ str_trim(.x)) %>%
+  rename_with(~ str_replace_all(.x, "\s+", "_")) %>%
+  rename_with(~ str_replace_all(.x, "[^A-Za-z0-9_]", ""))
 
-str(data)
-summary(data)
-head(data, 10)
+# Aide: afficher colonnes (facultatif, commenté)
+# names(df)
+```
 
-##3) Nettoyage : renommage des variables
+## Préparation et nettoyage
 
-data <- data %>%
-rename(
-date = Date,
-steg = Production.STEG..en.GWh,
-ipp = Production.IPP.en.GWh,
-solaire = IPP.Solaire,
-auto = Production.Auto.producteurs..en.GWh,
-total = Production.totale..GWh.
-)
+On convertit la colonne date (si possible) et on construit des variables temporelles (année, mois).
+Si la date est au format texte en français, on tente de la parser.
 
-str(data)
-summary(data)
+```{r}
+#| label: cleaning
+# 1) Détecter une colonne de date probable
+date_candidates <- names(df)[str_detect(tolower(names(df)), "date|mois|month|periode|period")]
 
-##4) Nettoyage : conversion des dates (formats mixtes FR)
-to_date_fr <- function(x){
-x <- str_trim(x)
-is_num <- str_detect(x, "^\d+\s*/\s*\d{4}$")
-out <- rep(as.Date(NA), length(x))
-out[is_num] <- my(str_replace_all(x[is_num], "\s+", ""))
+if (length(date_candidates) == 0) {
+  stop("Aucune colonne date détectée. Renomme une colonne en contenant 'date' ou 'mois'.")
+}
+date_col <- date_candidates[1]
 
-m <- x[!is_num]
-m <- str_replace_all(m, c("fçvr"="févr","dç"="déc","aoët"="août"))
-m2 <- str_replace_all(m, c(
-"janv"="Jan","févr"="Feb","fevr"="Feb","mars"="Mar","avr"="Apr",
-"mai"="May","juin"="Jun","juil"="Jul","août"="Aug","aout"="Aug",
-"sept"="Sep","oct"="Oct","nov"="Nov","déc"="Dec","dec"="Dec"
-))
-out[!is_num] <- my(m2)
-out
+# 2) Parser la date
+# Cas 1: déjà Date / POSIX
+if (inherits(df[[date_col]], "Date") || inherits(df[[date_col]], "POSIXt")) {
+  df <- df %>% mutate(date = as.Date(.data[[date_col]]))
+} else {
+  x <- as.character(df[[date_col]])
+  x <- str_trim(x)
+
+  # Tentatives de parsing courantes : YYYY-MM-DD, YYYY/MM/DD, YYYY-MM, MM/YYYY, etc.
+  # On essaie plusieurs formats.
+  parsed <- suppressWarnings(ymd(x))
+  if (all(is.na(parsed))) parsed <- suppressWarnings(ymd(str_replace_all(x, "/", "-")))
+
+  # Si c'est "YYYY-MM" on ajoute -01
+  if (all(is.na(parsed)) && any(str_detect(x, "^\d{4}-\d{2}$"))) {
+    parsed <- suppressWarnings(ymd(paste0(x, "-01")))
+  }
+
+  # Si c'est "MM/YYYY" ou "M/YYYY"
+  if (all(is.na(parsed)) && any(str_detect(x, "^\d{1,2}/\d{4}$"))) {
+    parts <- str_split(x, "/", simplify = TRUE)
+    mm <- str_pad(parts[,1], 2, pad = "0")
+    yy <- parts[,2]
+    parsed <- suppressWarnings(ymd(paste0(yy, "-", mm, "-01")))
+  }
+
+  # Dernier essai : dmy
+  if (all(is.na(parsed))) parsed <- suppressWarnings(dmy(x))
+
+  df <- df %>% mutate(date = as.Date(parsed))
 }
 
-data$date <- to_date_fr(data$date)
-range(data$date, na.rm = TRUE)
-colSums(is.na(data))
+stopifnot(!all(is.na(df$date)))
 
-##5) Passage en format long (producteurs)
-data_long <- data %>%
-pivot_longer(cols=c(steg, ipp, solaire, auto),
-names_to="producteur",
-values_to="production")
+# Variables temporelles (Combined into a single string for robustness)
 
+df <- df %>%
+  mutate(
+    year = year(date),
+    month = month(date),
+    month_name = month(date, label = TRUE, abbr = TRUE),
+  ) %>%
+  arrange(date)
 
-##6) Statistiques descriptives
-tab_stats <- data_long %>%
-group_by(producteur) %>%
-summarise(
-n = sum(!is.na(production)),
-moyenne = mean(production, na.rm = TRUE),
-mediane = median(production, na.rm = TRUE),
-ecart_type = sd(production, na.rm = TRUE),
-min = min(production, na.rm = TRUE),
-max = max(production, na.rm = TRUE)
+# 3) Détecter une colonne de production totale probable
+num_cols <- names(df)[sapply(df, is.numeric)]
+prod_candidates <- num_cols[str_detect(tolower(num_cols), "total|prod|production|energie|energy|kwh|gwh|mwh")]
+
+if (length(prod_candidates) == 0) {
+  # fallback: prendre la 1ère colonne numérique
+  prod_col <- num_cols[1]
+} else {
+  prod_col <- prod_candidates[1]
+}
+
+# Renommer pour standardiser
+df <- df %>% rename(prod_total = all_of(prod_col))
+
+# Résumé rapide
+df %>% summarise(
+  debut = min(date, na.rm = TRUE),
+  fin   = max(date, na.rm = TRUE),
+  n     = n(),
+  prod_min = min(prod_total, na.rm = TRUE),
+  prod_max = max(prod_total, na.rm = TRUE)
 )
-tab_stats
+```
 
-##7) Visualisations
-7.1 Production totale
-data_plot <- data %>% arrange(date)
+## Analyse descriptive
 
-ggplot(data_plot, aes(x=date, y=total)) +
-geom_line(linewidth=0.7, alpha=0.8) +
-geom_smooth(method="loess", span=0.15, se=FALSE, linewidth=1.1) +
-theme_minimal() +
-labs(title="Production totale mensuelle (2005–2024)",
-x="Date", y="GWh")
+### Série temporelle de la production totale
 
-7.2 Par producteur
-ggplot(data_long, aes(x=date, y=production, color=producteur)) +
-geom_line() +
-theme_minimal() +
-labs(title="Production par producteur", x="Date", y="GWh")
+On visualise l’évolution mensuelle pour observer la tendance et d’éventuels changements de régime.
 
-7.3 Boxplot
+```{r}
+#| label: ts_total
+#| fig-width: 9
+#| fig-height: 4.8
+#| fig-cap: "Évolution mensuelle de la production totale (2005–2024)."
+ggplot(df, aes(x = date, y = prod_total)) +
+  geom_line() +
+  labs(x = "Date", y = "Production totale", title = "Production totale mensuelle")
+```
 
-ggplot(data_long, aes(x=producteur, y=production, fill=producteur)) +
-geom_boxplot(na.rm=TRUE) +
-theme_minimal() +
-theme(legend.position="none") +
-labs(title="Distribution par producteur", x="", y="GWh")
+### Saison : distribution par mois (boxplot)
 
+Ce boxplot permet de comparer la distribution de la production selon le mois (effet saisonnier).
 
-##8) Tests : STEG vs IPP
-df_test <- data %>% select(steg, ipp) %>% na.omit()
-t.test(df_test$steg, df_test$ipp, paired=TRUE)
+```{r}
+#| label: boxplot_month
+#| fig-width: 9
+#| fig-height: 4.8
+#| fig-cap: "Distribution de la production totale par mois (saisonnalité)."
+ggplot(df, aes(x = month_name, y = prod_total)) +
+  geom_boxplot() +
+  labs(x = "Mois", y = "Production totale", title = "Saisonnalité (boxplot par mois)")
+```
 
-##9) Modèle : tendance + saisonnalité
-data_m <- data %>% arrange(date) %>% mutate(time=row_number(), month=month(date))
+### Moyenne mensuelle (profil saisonnier)
 
-m2 <- lm(total ~ time + factor(month), data = data_m)
-summary(m2)
+```{r}
+#| label: seasonal_profile
+#| fig-width: 9
+#| fig-height: 4.8
+#| fig-cap: "Profil saisonnier : moyenne de production par mois."
+df %>%
+  group_by(month) %>%
+  summarise(mean_prod = mean(prod_total, na.rm = TRUE), .groups = "drop") %>%
+  mutate(month_name = month(month, label = TRUE, abbr = TRUE)) %>%
+  ggplot(aes(x = month_name, y = mean_prod, group = 1)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Mois", y = "Production moyenne", title = "Profil saisonnier (moyenne par mois)")
+```
 
-##10) Réel vs estimé
-data_m$pred <- fitted(m2)
+## Modélisation simple
 
-ggplot(data_m, aes(x=date)) +
-geom_line(aes(y=total)) +
-geom_line(aes(y=pred), linetype="dashed") +
-theme_minimal() +
-labs(title="Réel vs estimé", x="Date", y="GWh")
+On ajuste une régression linéaire avec :
+- une tendance (le temps),
+- des effets saisonniers (mois).
 
-✅ Avec ça :
-- tes **graphiques apparaissent**
-- le rapport a un **design propre**
-- le site a un **menu**
+```{r}
+#| label: model
+df_model <- df %>%
+  filter(!is.na(prod_total)) %>%
+  mutate(t = as.numeric(date)) %>%
+  mutate(month_f = factor(month))
 
----
+mod <- lm(prod_total ~ t + month_f, data = df_model)
+summary(mod)
+```
 
-# ✅ Ensuite : re-render + push
-Dans Colab (R) :
+### Valeurs observées vs ajustées
 
-```r
-system("quarto render")
+```{r}
+#| label: fitted_plot
+#| fig-width: 9
+#| fig-height: 4.8
+#| fig-cap: "Production observée vs ajustée par le modèle (tendance + saisonnalité)."
+df_model <- df_model %>% mutate(fitted = fitted(mod))
+ggplot(df_model, aes(x = date)) +
+  geom_line(aes(y = prod_total), linewidth = 0.4) +
+  geom_line(aes(y = fitted), linetype = "dashed", linewidth = 0.6) +
+  labs(x = "Date", y = "Production", title = "Observé vs Ajusté")
+```
 
+## Conclusion
 
+- La série montre une évolution temporelle et une saisonnalité mensuelle visible.
+- Le modèle simple (tendance + mois) capture une partie de cette structure.
+- Des améliorations possibles : modèles ARIMA/ETS, détection de ruptures, variables explicatives (température, demande, etc.).
 
