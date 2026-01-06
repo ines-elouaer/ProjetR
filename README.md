@@ -36,5 +36,6 @@ Le code complet et exécutable du projet est disponible sur Google Colab :
 ## Présentation
 - 📊 Slides (PDF) : slides/presentation_ProjetR_Ines_Elouaer.pdf
 
+
 ## Auteur
 **Ines Elouaer**
