@@ -1,0 +1,153 @@
+---
+---
+title: "Analyse de la production mensuelle d’électricité en Tunisie (2005–2024)"
+format:
+  html:
+    theme: cosmo
+    toc: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+## 1) Packages
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(stringr)
+library(tidyr)
+
+##2) Chargement des données
+
+stopifnot(file.exists("data/opendataproductionmensuelleelectriciteparproducteurs.csv"))
+
+data <- read.csv(
+"data/opendataproductionmensuelleelectriciteparproducteurs.csv",
+sep = ";",
+stringsAsFactors = FALSE
+)
+
+str(data)
+summary(data)
+head(data, 10)
+
+##3) Nettoyage : renommage des variables
+
+data <- data %>%
+rename(
+date = Date,
+steg = Production.STEG..en.GWh,
+ipp = Production.IPP.en.GWh,
+solaire = IPP.Solaire,
+auto = Production.Auto.producteurs..en.GWh,
+total = Production.totale..GWh.
+)
+
+str(data)
+summary(data)
+
+##4) Nettoyage : conversion des dates (formats mixtes FR)
+to_date_fr <- function(x){
+x <- str_trim(x)
+is_num <- str_detect(x, "^\d+\s*/\s*\d{4}$")
+out <- rep(as.Date(NA), length(x))
+out[is_num] <- my(str_replace_all(x[is_num], "\s+", ""))
+
+m <- x[!is_num]
+m <- str_replace_all(m, c("fçvr"="févr","dç"="déc","aoët"="août"))
+m2 <- str_replace_all(m, c(
+"janv"="Jan","févr"="Feb","fevr"="Feb","mars"="Mar","avr"="Apr",
+"mai"="May","juin"="Jun","juil"="Jul","août"="Aug","aout"="Aug",
+"sept"="Sep","oct"="Oct","nov"="Nov","déc"="Dec","dec"="Dec"
+))
+out[!is_num] <- my(m2)
+out
+}
+
+data$date <- to_date_fr(data$date)
+range(data$date, na.rm = TRUE)
+colSums(is.na(data))
+
+##5) Passage en format long (producteurs)
+data_long <- data %>%
+pivot_longer(cols=c(steg, ipp, solaire, auto),
+names_to="producteur",
+values_to="production")
+
+
+##6) Statistiques descriptives
+tab_stats <- data_long %>%
+group_by(producteur) %>%
+summarise(
+n = sum(!is.na(production)),
+moyenne = mean(production, na.rm = TRUE),
+mediane = median(production, na.rm = TRUE),
+ecart_type = sd(production, na.rm = TRUE),
+min = min(production, na.rm = TRUE),
+max = max(production, na.rm = TRUE)
+)
+tab_stats
+
+##7) Visualisations
+7.1 Production totale
+data_plot <- data %>% arrange(date)
+
+ggplot(data_plot, aes(x=date, y=total)) +
+geom_line(linewidth=0.7, alpha=0.8) +
+geom_smooth(method="loess", span=0.15, se=FALSE, linewidth=1.1) +
+theme_minimal() +
+labs(title="Production totale mensuelle (2005–2024)",
+x="Date", y="GWh")
+
+7.2 Par producteur
+ggplot(data_long, aes(x=date, y=production, color=producteur)) +
+geom_line() +
+theme_minimal() +
+labs(title="Production par producteur", x="Date", y="GWh")
+
+7.3 Boxplot
+
+ggplot(data_long, aes(x=producteur, y=production, fill=producteur)) +
+geom_boxplot(na.rm=TRUE) +
+theme_minimal() +
+theme(legend.position="none") +
+labs(title="Distribution par producteur", x="", y="GWh")
+
+
+##8) Tests : STEG vs IPP
+df_test <- data %>% select(steg, ipp) %>% na.omit()
+t.test(df_test$steg, df_test$ipp, paired=TRUE)
+
+##9) Modèle : tendance + saisonnalité
+data_m <- data %>% arrange(date) %>% mutate(time=row_number(), month=month(date))
+
+m2 <- lm(total ~ time + factor(month), data = data_m)
+summary(m2)
+
+##10) Réel vs estimé
+data_m$pred <- fitted(m2)
+
+ggplot(data_m, aes(x=date)) +
+geom_line(aes(y=total)) +
+geom_line(aes(y=pred), linetype="dashed") +
+theme_minimal() +
+labs(title="Réel vs estimé", x="Date", y="GWh")
+
+✅ Avec ça :
+- tes **graphiques apparaissent**
+- le rapport a un **design propre**
+- le site a un **menu**
+
+---
+
+# ✅ Ensuite : re-render + push
+Dans Colab (R) :
+
+```r
+system("quarto render")
+
+
+

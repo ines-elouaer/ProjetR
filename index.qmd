@@ -1,10 +1,23 @@
 ---
 title: "Accueil"
+format:
+  html:
+    theme: cosmo
+    toc: false
 ---
 
-Bienvenue 👋
+## Projet
+Analyse de la production mensuelle d’électricité en Tunisie sur la période **2005–2024**.
 
-Ce dépôt contient l’analyse de la production mensuelle d’électricité en Tunisie (2005–2024).
+### Objectifs
+- Comprendre la **tendance** long terme
+- Identifier la **saisonnalité**
+- Comparer la contribution de différents producteurs (STEG, IPP, solaire, auto-producteurs)
 
-➡️ Ouvre le **Rapport** via le menu (ou fichier `qmd/report.qmd`).
+## Ressources dans ce dépôt
+- **Rapport Quarto** : `qmd/report.qmd`
+- **Dataset** : `data/opendataproductionmensuelleelectriciteparproducteurs.csv`
+- **Sortie site (GitHub Pages)** : dossier `docs/`
+
+➡️ Clique sur **Rapport** dans le menu en haut.
 
