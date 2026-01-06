@@ -6,29 +6,15 @@ format:
     toc-depth: 3
     code-fold: true
     theme: cosmo
-    css: ../styles.css
+    css: styles.css
 execute:
   echo: false
   warning: false
   message: false
 ---
 
-## Introduction
 
-Ce rapport analyse l’évolution mensuelle de la production d’électricité en Tunisie (2005–2024).
-Objectifs : décrire la tendance, la saisonnalité et comparer les producteurs (STEG, IPP, solaire, auto-producteurs).
-
-## Chargement des packages
-
-```{r}
-library(dplyr)
-library(ggplot2)
-library(lubridate)
-library(stringr)
-library(tidyr)
-```
-
-## Chargement des données
+## Données
 
 ```{r}
 path <- "data/opendataproductionmensuelleelectriciteparproducteurs.csv"
@@ -36,147 +22,33 @@ stopifnot(file.exists(path))
 data <- read.csv(path, sep=";", stringsAsFactors = FALSE)
 ```
 
-## Nettoyage et préparation
-
-### Renommage des variables
+## Nettoyage
 
 ```{r}
+library(dplyr)
 data <- data %>%
   rename(
-    date   = Date,
-    steg   = Production.STEG..en.GWh,
-    ipp    = Production.IPP.en.GWh,
-    solaire= IPP.Solaire,
-    auto   = Production.Auto.producteurs..en.GWh,
-    total  = Production.totale..GWh.
+    date = Date,
+    steg = Production.STEG..en.GWh,
+    ipp = Production.IPP.en.GWh,
+    solaire = IPP.Solaire,
+    auto = Production.Auto.producteurs..en.GWh,
+    total = Production.totale..GWh.
   )
 ```
 
-### Conversion des dates (formats français)
-
-```{r}
-to_date_fr <- function(x){
-  x <- str_trim(as.character(x))
-  out <- rep(as.Date(NA), length(x))
-
-  # Cas "m/YYYY" ou "mm/YYYY" (on évite \d en utilisant [0-9])
-  is_num <- str_detect(x, "^[0-9]{1,2}/[0-9]{4}$")
-  if (any(is_num)) {
-    parts <- str_split(x[is_num], "/", simplify = TRUE)
-    mm <- str_pad(parts[,1], 2, pad="0")
-    yy <- parts[,2]
-    out[is_num] <- ymd(paste0(yy, "-", mm, "-01"))
-  }
-
-  # Cas "janv-22", "févr-22" etc. (convertir mois FR -> EN)
-  m <- x[!is_num]
-  if (length(m) > 0) {
-    m <- str_replace_all(m, c("f�vr"="févr","d�c"="déc","ao�t"="août"))
-    m2 <- str_replace_all(m, c(
-      "janv"="Jan","févr"="Feb","fevr"="Feb","mars"="Mar","avr"="Apr","mai"="May",
-      "juin"="Jun","juil"="Jul","août"="Aug","aout"="Aug","sept"="Sep","oct"="Oct",
-      "nov"="Nov","déc"="Dec","dec"="Dec"
-    ))
-    out[!is_num] <- my(m2)
-  }
-  out
-}
-
-data$date <- to_date_fr(data$date)
-data <- data %>% arrange(date) %>% mutate(year = year(date), month = month(date))
-```
-
-## Mise en forme (long) pour comparer les producteurs
-
-```{r}
-data_long <- data %>%
-  pivot_longer(cols = c(steg, ipp, solaire, auto),
-               names_to = "producteur", values_to = "production")
-```
-
-## Visualisations
-
-### Production totale mensuelle
+## Visualisation : Total
 
 ```{r}
 #| fig-width: 9
 #| fig-height: 4.8
-#| fig-cap: "Production totale mensuelle (2005–2024) : tendance + saisonnalité."
+library(ggplot2)
 ggplot(data, aes(x = date, y = total)) +
-  geom_line(linewidth = 0.7, alpha = 0.85) +
-  geom_smooth(method = "loess", span = 0.15, se = FALSE, linewidth = 1.0) +
-  labs(title = "Production totale mensuelle d’électricité (2005–2024)",
-       subtitle = "Pics répétés = saisonnalité ; courbe lissée = tendance",
-       x = "Date", y = "Production (GWh)") +
-  theme_minimal()
-```
-
-### Production par producteur
-
-```{r}
-#| fig-width: 9
-#| fig-height: 4.8
-#| fig-cap: "Production mensuelle par type de producteur."
-ggplot(data_long, aes(x = date, y = production, color = producteur)) +
-  geom_line(linewidth = 0.6, alpha = 0.9) +
-  labs(title = "Production mensuelle d’électricité par producteur",
-       x = "Date", y = "GWh") +
-  theme_minimal()
-```
-
-### Boxplot : distribution par producteur
-
-```{r}
-#| fig-width: 9
-#| fig-height: 4.8
-#| fig-cap: "Distribution de la production (boxplot) par producteur."
-ggplot(data_long, aes(x = producteur, y = production, fill = producteur)) +
-  geom_boxplot(na.rm = TRUE) +
-  labs(title = "Distribution de la production par producteur", x = "", y = "GWh") +
+  geom_line() +
   theme_minimal() +
-  theme(legend.position = "none")
-```
-
-## Tests statistiques (STEG vs IPP)
-
-```{r}
-df_test <- data %>% select(steg, ipp) %>% na.omit()
-shapiro.test(df_test$steg)
-shapiro.test(df_test$ipp)
-t.test(df_test$steg, df_test$ipp, paired = TRUE)
-```
-
-## Modélisation : tendance + saisonnalité
-
-```{r}
-data_mod <- data %>% mutate(time = row_number(), month_f = factor(month))
-m1 <- lm(total ~ time, data = data_mod)
-m2 <- lm(total ~ time + month_f, data = data_mod)
-data.frame(
-  modele = c("Temps", "Temps + Saison"),
-  R2 = c(summary(m1)$r.squared, summary(m2)$r.squared),
-  R2_ajuste = c(summary(m1)$adj.r.squared, summary(m2)$adj.r.squared)
-)
-```
-
-### Observé vs estimé
-
-```{r}
-#| fig-width: 9
-#| fig-height: 4.8
-#| fig-cap: "Production réelle vs estimée par le modèle (Temps + Saison)."
-data_mod$valeur_modele <- fitted(m2)
-ggplot(data_mod, aes(x = date)) +
-  geom_line(aes(y = total), linewidth = 0.6) +
-  geom_line(aes(y = valeur_modele), linetype = "dashed", linewidth = 0.8) +
-  labs(title = "Production réelle vs estimée", x = "Date", y = "GWh") +
-  theme_minimal()
+  labs(title = "Production totale mensuelle", x = "Date", y = "GWh")
 ```
 
 ## Conclusion
 
-- La série présente une tendance et une saisonnalité mensuelle visible.
-- La comparaison des producteurs met en évidence des profils différents (STEG/IPP/etc.).
-- Le modèle linéaire (temps + mois) capture une partie de la structure mais reste simple.
-- Pistes : modèles plus avancés (ETS/ARIMA), variables explicatives (demande, météo), détection de ruptures.
-
+Résumé rapide des résultats.
