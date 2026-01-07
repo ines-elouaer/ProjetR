@@ -43,6 +43,8 @@ Le code complet et exécutable du projet est disponible sur Google Colab :
 
 - 🧾 Rapport Quarto (source) :  
   `qmd/report.qmd`
+  👉https://ines-elouaer.github.io/ProjetR/qmd/report.html
+
 
 
 
